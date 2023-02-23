@@ -142,28 +142,6 @@ score <- eventReactive(input$button, {
                      stalk.surface.below.ring = input$stalk.surface.below.ring,
                      veil.color = input$veil.color)
   
-  # data <- data.table(bruises = 'yes',
-  #                    cap.color = 'brown',
-  #                    cap.shape = 'bell',
-  #                    cap.surface = 'fibrous',
-  #                    gill.attachment = 'yes',
-  #                    gill.color = 'black',
-  #                    gill.size = 'yes',
-  #                    gill.spacing = 'yes',
-  #                    habitat = 'grasses',
-  #                    odor = 'almond',
-  #                    population = 'abundant',
-  #                    ring.number = '1',
-  #                    ring.type = 'evanescent',
-  #                    spore.print.color = 'black',
-  #                    stalk.color.above.ring = 'brown',
-  #                    stalk.color.below.ring = 'brown',
-  #                    stalk.root = 'bulbous',
-  #                    stalk.shape = 'yes',
-  #                    stalk.surface.above.ring = 'fibrous',
-  #                    stalk.surface.below.ring = 'fibrous',
-  #                    veil.color = 'brown')
-  
   merge <- copy(data)
   merge[, bruises := fifelse(bruises == 'yes', 1, 0)]
   merge[, gill.attachment := fifelse(gill.attachment == 'yes', 1, 0)]
