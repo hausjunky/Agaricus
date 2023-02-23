@@ -1,0 +1,232 @@
+---
+title: 'Mushroom Hunting with XGBoost'
+output: 
+  flexdashboard::flex_dashboard:
+    theme: cosmo
+    vertical_layout: fill
+    orientation: columns
+runtime: shiny
+
+---
+
+```{r setup, include=FALSE}
+options(scipen = 999)
+library(flexdashboard)
+library(shiny)
+suppressPackageStartupMessages(library(data.table))
+library(mltools)
+library(Matrix)
+library(xgboost)
+library(waterfalls)
+suppressPackageStartupMessages(library(ggplot2))
+```
+
+```{r data}
+load('Shiny.RData')
+```
+
+Column {.sidebar data-width=200}
+-----------------------------------------------------------------
+
+```{r inputs}
+
+selectInput(inputId = 'bruises',
+            label = 'Does it have bruises?',
+            choices = c('yes', 'no'))
+
+selectInput(inputId = 'cap.color',
+            label = 'What is the color of the cap?',
+            choices = sort(lookup$cap.color$lookup))
+
+selectInput(inputId = 'cap.shape',
+            label = 'What is the shape of the cap?',
+            choices = sort(lookup$cap.shape$lookup))
+
+selectInput(inputId = 'cap.surface',
+            label = 'What is the surface type of the cap?',
+            choices = sort(lookup$cap.surface$lookup))
+
+selectInput(inputId = 'gill.attachment',
+            label = 'Are the gills attached?',
+            choices = c('yes', 'no'))
+
+selectInput(inputId = 'gill.color',
+            label = 'What color are the gills?',
+            choices = sort(lookup$gill.color$lookup))
+
+selectInput(inputId = 'gill.size',
+            label = 'Are the gills narrow?',
+            choices = c('yes', 'no'))
+
+selectInput(inputId = 'gill.spacing',
+            label = 'Are the gills crowded?',
+            choices = c('yes', 'no'))
+
+selectInput(inputId = 'habitat',
+            label = 'Where did you find it?',
+            choices = sort(lookup$habitat$lookup))
+
+selectInput(inputId = 'odor',
+            label = 'What does it smell like?',
+            choices = sort(lookup$odor$lookup))
+
+selectInput(inputId = 'population',
+            label = 'How was it situated among others like it?',
+            choices = sort(lookup$population$lookup))
+
+selectInput(inputId = 'ring.number',
+            label = 'How many rings on it?',
+            choices = c('0', '1', '2'))
+
+selectInput(inputId = 'ring.type',
+            label = 'How do the rings look?',
+            choices = sort(lookup$ring.type$lookup))
+
+selectInput(inputId = 'spore.print.color',
+            label = 'What color is the spore print?',
+            choices = sort(lookup$spore.print.color$lookup))
+
+selectInput(inputId = 'stalk.color.above.ring',
+            label = 'What color is the stalk above the ring?',
+            choices = sort(lookup$stalk.color.above.ring$lookup))
+
+selectInput(inputId = 'stalk.color.below.ring',
+            label = 'What color is the stalk below the ring?',
+            choices = sort(lookup$stalk.color.below.ring$lookup))
+
+selectInput(inputId = 'stalk.root',
+            label = 'What does the stalk root look like?',
+            choices = sort(lookup$stalk.root$lookup))
+
+selectInput(inputId = 'stalk.shape',
+            label = 'Is the stalk shape enlarging?',
+            choices = c('yes', 'no'))
+
+selectInput(inputId = 'stalk.surface.above.ring',
+            label = 'What does the stalk surface above the ring look like?',
+            choices = sort(lookup$stalk.surface.above.ring$lookup))
+
+selectInput(inputId = 'stalk.surface.below.ring',
+            label = 'What does the stalk surface below the ring look like?',
+            choices = sort(lookup$stalk.surface.below.ring$lookup))
+
+selectInput(inputId = 'veil.color',
+            label = 'What color is the veil?',
+            choices = sort(lookup$veil.color$lookup))
+
+actionButton(inputId = 'button', label = 'Can I eat it?!')
+```
+
+```{r reactive expression}
+score <- eventReactive(input$button, {
+  
+  data <- data.table(bruises = input$bruises,
+                     cap.color = input$cap.color,
+                     cap.shape = input$cap.shape,
+                     cap.surface = input$cap.surface,
+                     gill.attachment = input$gill.attachment,
+                     gill.color = input$gill.color,
+                     gill.size = input$gill.size,
+                     gill.spacing = input$gill.spacing,
+                     habitat = input$habitat,
+                     odor = input$odor,
+                     population = input$population,
+                     ring.number = input$ring.number,
+                     ring.type = input$ring.type,
+                     spore.print.color = input$spore.print.color,
+                     stalk.color.above.ring = input$stalk.color.above.ring,
+                     stalk.color.below.ring = input$stalk.color.below.ring,
+                     stalk.root = input$stalk.root,
+                     stalk.shape = input$stalk.shape,
+                     stalk.surface.above.ring = input$stalk.surface.above.ring,
+                     stalk.surface.below.ring = input$stalk.surface.below.ring,
+                     veil.color = input$veil.color)
+  
+  # data <- data.table(bruises = 'yes',
+  #                    cap.color = 'brown',
+  #                    cap.shape = 'bell',
+  #                    cap.surface = 'fibrous',
+  #                    gill.attachment = 'yes',
+  #                    gill.color = 'black',
+  #                    gill.size = 'yes',
+  #                    gill.spacing = 'yes',
+  #                    habitat = 'grasses',
+  #                    odor = 'almond',
+  #                    population = 'abundant',
+  #                    ring.number = '1',
+  #                    ring.type = 'evanescent',
+  #                    spore.print.color = 'black',
+  #                    stalk.color.above.ring = 'brown',
+  #                    stalk.color.below.ring = 'brown',
+  #                    stalk.root = 'bulbous',
+  #                    stalk.shape = 'yes',
+  #                    stalk.surface.above.ring = 'fibrous',
+  #                    stalk.surface.below.ring = 'fibrous',
+  #                    veil.color = 'brown')
+  
+  merge <- copy(data)
+  merge[, bruises := fifelse(bruises == 'yes', 1, 0)]
+  merge[, gill.attachment := fifelse(gill.attachment == 'yes', 1, 0)]
+  merge[, gill.size := fifelse(gill.size == 'yes', 1, 0)]
+  merge[, gill.spacing := fifelse(gill.spacing == 'yes', 1, 0)]
+  merge[, ring.number := as.integer(ring.number)]
+  merge[, stalk.shape := fifelse(stalk.shape == 'yes', 1, 0)]
+
+  for (i in cats) {
+
+    table <- lookup[[i]]
+    value <- merge[[i]]
+    merge[[i]] <- table[lookup == value]$lookup
+
+  }
+
+  matrix <- Matrix(as.matrix(one_hot(merge[, ..vars])), sparse = TRUE)
+  matrix <- xgb.DMatrix(data = matrix)
+  shap <- data.table(predict(model, matrix, predcontrib = TRUE))
+
+  cols <- data.table(t(data), keep.rownames = TRUE)
+  cols[, shap := NA_real_]
+  for (i in vars) {
+
+    x <- names(shap)[substring(names(shap), 1, nchar(i)) == i]
+    y <- shap[, Reduce(`+`, .SD), .SDcols = x]
+    cols[rn == i, shap := y]
+
+  }
+  cols <- rbind(cols, data.table(rn = 'bias',
+                                 V1 = NA_character_,
+                                 shap = unique(shap$BIAS)))
+
+  cols <- cols[c(nrow(cols), 1:(nrow(cols) - 1))]
+  names(cols) <- c('VAR', 'VAL', 'SHAP')
+  cols[, CML := cumsum(SHAP)]
+  cols[, TNF := inv_logit(CML)]
+  cols[, DFF := TNF - shift(TNF)]
+  cols[1, DFF := TNF]
+  
+})
+```
+
+Column {data-width=200}
+-----------------------------------------------------------------------
+
+###
+
+```{r table}
+renderTable(score())
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+###
+
+```{r scatter}
+renderPlot(
+  waterfall(value = round(score()$DFF, 5), labels = score()$VAR, calc_total = TRUE) +
+    ggtitle(ifelse(score()[nrow(score()), TNF] > .5, 'Positive', 'Negative')) +
+    theme(plot.title = element_text(size = 20)) +
+    theme(axis.text = element_text(size = 14)) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+)
+```
